@@ -5,12 +5,14 @@ date: "October 26, 2014"
 output: html_document
 ---
 
-First we start by loading the data sets from the working directory
+First we start by loading libraries and the data sets from the working directory
 ```{r}
-## Load Data
-# load test data
+#Load Libraries
+library(dplyr)
+library(reshape2)
+
 testdata <- read.table("./UCI HAR Dataset/test/X_test.txt")
-label.index <- read.table("./UCI HAR Dataset/test/y_test.txt")
+test.index <- read.table("./UCI HAR Dataset/test/y_test.txt")
 test.subjects <- read.table("./UCI HAR Dataset/test/subject_test.txt")
 # load training data
 traindata <- read.table("./UCI HAR Dataset/train/X_train.txt")
@@ -18,6 +20,9 @@ train.index <- read.table("./UCI HAR Dataset/train/y_train.txt")
 train.subjects <- read.table("./UCI HAR Dataset/train/subject_train.txt")
 # load features
 features <- read.table("./UCI HAR Dataset/features.txt")
+
+# bind test data with training data
+totaldata <- rbind(testdata, traindata)
 ```
 
 This code finds the appropriate Mean and Standard Deviation measurements
@@ -29,7 +34,7 @@ as opposed to the mean of the actuals observations which we were interested in.
 ```{r}
 # GOAL: find all mean calculations
 # only using lower case mean to avoid angle measurements with 'Mean'
-mean <- grepl("mean", features$V2)
+means <- grepl("mean", features$V2)
 # remove meanfreq since not mean of measurement but of frequency components
 # as described in features_info.txt document
 freq <- grepl("Freq", features$V2)
@@ -37,7 +42,7 @@ freq <- grepl("Freq", features$V2)
 # subset features without meanfreq
 features <- features[!(freq),]
 #subset 46 features with mean
-mean.features <- features[mean,]
+mean.features <- features[means,]
 
 ## Goal: find all standard deviation calculations
 std <- grepl("std", features$V2)
@@ -46,49 +51,56 @@ std.features <- features[std,]
 
 # combine standard deviation and mean calculations
 SnM.features <- rbind(mean.features, std.features)
+SnM.features <- SnM.features[complete.cases(SnM.features),]
 
-# Subset data to desired measurements
-measured.date <- traindata[,SnM.features$V1]
-measured.date <- testdata[,SnM.features$V1]
+# subset total data to features of interest
+totaldata <- totaldata[SnM.features$V1]
 ```
 
 Here we are transforming the indexes from the code book into
 understandable classifiers for the label variable
 ```{r}
+# Join labels and Subsets
+subjects <- rbind(test.subjects, train.subjects)
+labels <- rbind(test.index, train.index)
 # convert label index to label names
-test.label <- lapply(label.index,function(x) gsub(1,"Walking",x))
-test.label <- lapply(test.label,function(x) gsub(2,"Walking_Upstairs",x))
-test.label <- lapply(test.label,function(x) gsub(3,"Walking_Downstairs",x))
-test.label <- lapply(test.label,function(x) gsub(4,"Sitting",x))
-test.label <- lapply(test.label,function(x) gsub(5,"Standing",x))
-test.label <- lapply(test.label,function(x) gsub(6,"Laying",x))
+labels <- lapply(labels,function(x) gsub(1,"Walking",x))
+labels <- lapply(labels,function(x) gsub(2,"Walking_Upstairs",x))
+labels <- lapply(labels,function(x) gsub(3,"Walking_Downstairs",x))
+labels <- lapply(labels,function(x) gsub(4,"Sitting",x))
+labels <- lapply(labels,function(x) gsub(5,"Standing",x))
+labels <- lapply(labels,function(x) gsub(6,"Laying",x))
 
-# bind labels to appropriate test data
-testdata <- cbind(test.label, test.subjects, testdata)
-
-# convert label index to label names
-train.label <- lapply(train.index,function(x) gsub(1,"Walking",x))
-train.label <- lapply(train.label,function(x) gsub(2,"Walking_Upstairs",x))
-train.label <- lapply(train.label,function(x) gsub(3,"Walking_Downstairs",x))
-train.label <- lapply(train.label,function(x) gsub(4,"Sitting",x))
-train.label <- lapply(train.label,function(x) gsub(5,"Standing",x))
-train.label <- lapply(train.label,function(x) gsub(6,"Laying",x))
-
-traindata <- cbind(train.label, train.subjects, traindata)
-
-# bind test data with training data
-totaldata <- rbind(testdata, traindata)
+# add Labels and Subject to total data
+totaldata <- cbind(subjects, labels, totaldata)
 ```
 
 Naming the Variables In accordance with tidy data
 ```{r}
 # name variables
-names(totaldata) <- c("Label", "Subject", as.character(SnM.features$V2))
+names(totaldata) <- c("Subject", "Label", as.character(SnM.features$V2))
 ```
 
-This Creates new feature and labal text files for the new code book
+This Creates the first tidy data set as well as
+new feature and labal text files for the new code book
+Finally create the tidy data set with average values
+Per Subject Per Activity
 ```{r}
+# Create new data frame with average of each variable for each activity
+datamelt <- melt(totaldata, id=c("Subject", "Label"))
+tidymean <- dcast(datamelt, Subject+Label~variable,mean)
+
+# create new tidy data
+write.table(totaldata, file = "tidyrawdata.txt", row.name=FALSE)
 # create new feature text file for code book
 write.table(SnM.features, file = "NewFeatures.txt")
 write.table(totaldata$Label, file = "NewLabel.txt")
+# Create tidy date with the average of each activity
+write.table(tidymean, file = "tidyAvgPerSubjectPerAct.txt")
 ```
+* Note this tidy data set contains the average of each variable value
+as requested in the assignment.
+Because some variables are standard deviations
+their average comes out negative.
+This does not mean the recorded value was negative
+only that the average standard deviation of the recorded value was negative

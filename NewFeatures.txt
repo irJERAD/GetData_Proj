@@ -44,7 +44,6 @@
 "541" 541 "fBodyBodyGyroMag-kurtosis()"
 "551" 551 "fBodyBodyGyroJerkMag-maxInds"
 "555" 555 "angle(tBodyAccMean,gravity)"
-"NA" NA NA
 "4" 4 "tBodyAcc-std()-X"
 "5" 5 "tBodyAcc-std()-Y"
 "6" 6 "tBodyAcc-std()-Z"
